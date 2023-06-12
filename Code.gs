@@ -53,9 +53,9 @@ function getAllVideos(playlistId){
     response.push(res)
     token = res.nextPageToken
     vids = res.items.map(item=>item.snippet.resourceId.videoId)
-    videoIds = videoIds.concat(vids);
-    videoTitles = videoTitles.concat(res.items.map(item=>item.snippet.title));
-    statResponse = statResponse.concat(YouTube.Videos.list(['statistics','contentDetails'],{'id':vids,'maxResults':50}).items)
+    videoIds.push(...vids);
+    videoTitles.push(...res.items.map(item=>item.snippet.title));
+    statResponse.push(...YouTube.Videos.list(['statistics','contentDetails'],{'id':vids,'maxResults':50}).items)
   }
 
   var data = []
@@ -65,7 +65,7 @@ function getAllVideos(playlistId){
     data.push(row)
   }
   data.sort((a, b) => b[b.length - 1]-a[a.length - 1]);
-  data.map(row=>SpreadsheetApp.getActiveSpreadsheet().appendRow(row))
+  SpreadsheetApp.getActiveSheet().getRange(2,1,data.length, data[0].length).setValues(data);
 }
 
 function processToken(token,playlistId){
