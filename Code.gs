@@ -16,7 +16,7 @@ function clear_sheet(){
   }
   
   // Write the row of data (foo) to the first row
-  var data = ["Link","Title","Duration","Views","Likes","Likes/View"];
+  var data = ["Link","Title","Duration","Views","Likes","Likes/View","Score (regression deviation)"];
   sheet.getRange(1, 1, 1, data.length).setValues([data]);
 }
 
@@ -59,12 +59,36 @@ function getAllVideos(playlistId){
   }
 
   var data = []
+  let views = []
+  let likes = []
   for(var i=0;i<statResponse.length;++i){
     var item = statResponse[i]
-    row = [linkify(videoIds[i]),videoTitles[i],item.contentDetails.duration,item.statistics.viewCount,item.statistics.likeCount,item.statistics.likeCount/item.statistics.viewCount]
+    let likeCount = item.statistics.likeCount
+    let viewCount = item.statistics.viewCount
+    let ltv = likeCount/viewCount
+    if(!ltv)ltv = '';
+    row = [linkify(videoIds[i]),
+    videoTitles[i],
+    item.contentDetails.duration,
+    viewCount,
+    likeCount?likeCount:-1,
+    ltv]
     data.push(row)
+    views.push(viewCount)
+    likes.push(likeCount)
   }
-  data.sort((a, b) => b[b.length - 1]-a[a.length - 1]);
+  let scores = getScore(views,likes)
+  for (let i = 0;i<data.length;++i){
+    data[i].push(scores[i]?scores[i]:-Infinity)
+  }
+  // sort by regression error
+  data.sort((a, b) => b[b.length-1]-a[a.length-1]);
+
+  // replace infinities
+  data = data.map(function(row){
+    let v=row[row.length-1]; 
+    row[row.length-1] = v==-Infinity ? '' : v;
+    return row;})
   SpreadsheetApp.getActiveSheet().getRange(2,1,data.length, data[0].length).setValues(data);
 }
 
@@ -75,10 +99,64 @@ return YouTube.PlaylistItems.list(['snippet'],
                                        {'pageToken':token, 'playlistId': playlistId,'maxResults':50});
 }
 
+function getScore(views,likes){
+  let loggedViews = views.map(Math.log)
+  let loggedLikes = likes.map(Math.log)
+  var regression = getLinearRegression(loggedViews, loggedLikes);
+  Logger.log("regression results")
+  Logger.log(regression)
+
+  // Get the regression results
+  var slope = regression[0]
+  var intercept = regression[1]
+
+  let scores = []
+  for(let i = 0; i< loggedLikes.length; i++){
+    let diff = loggedLikes[i] - (slope * loggedViews[i] + intercept)
+    let score = diff*diff
+    if (diff<0)score=-score
+    scores.push(score)
+  }
+  Logger.log("scores")
+  Logger.log(scores)
+  return scores;
+}
+
+function getLinearRegression(x,y){
+  Logger.log("Received data")
+  Logger.log(x)
+  Logger.log(y)
+
+  let sumY = 0;
+  let sumX = 0;
+  let sumXY = 0;
+  let sumXSquared = 0;
+
+  for (let i = 0; i < y.length; i++) {
+    if(!x[i] || !y[i])continue; // skip entries with NaN (zero views or likes)
+    sumY += y[i];
+    sumX += x[i];
+    sumXY += y[i] * x[i];
+    sumXSquared += x[i] * x[i];
+  }
+
+  // Calculate the means
+  const meanY = sumY / y.length;
+  const meanX = sumX / x.length;
+
+  Logger.log([sumX,sumY,sumXY,sumXSquared,meanY,meanX])
+
+  // Calculate the slope (b) and the y-intercept (a) of the best-fit line
+  const slope = (sumXY - y.length * meanY * meanX) /
+    (sumXSquared - x.length * meanX * meanX);
+  const xIntercept = meanY - slope * meanX;
+  return [slope,xIntercept]
+}
+
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('Like-per-View Finder')
-  .addItem('Get Top Rated from A Channel', 'getTopRatedFrom')
-  .addItem('Get Top Rated from A Playlist', 'getTopRatedFromPlaylist')
+  .addItem('Get Top Rated from Channel', 'getTopRatedFrom')
+  .addItem('Get Top Rated from Playlist', 'getTopRatedFromPlaylist')
   .addToUi();
 }
