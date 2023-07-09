@@ -3,7 +3,8 @@
 
 function test(){
   // Tom Scott
-  getAllVideos('UUBa659QWEk1AI4Tg--mrJ2A')
+  // getAllVideos('UUBa659QWEk1AI4Tg--mrJ2A')
+  getAllVideos('UU2Kyj04yISmHr1V-UlJz4eg') //Jared
 }
 
 function clear_sheet(){
@@ -133,7 +134,7 @@ function getLinearRegression(x,y){
   let sumXSquared = 0;
 
   for (let i = 0; i < y.length; i++) {
-    if(!x[i] || !y[i])continue; // skip entries with NaN (zero views or likes)
+    if(!x[i] || !y[i] || x[i]==-Infinity|| y[i]==-Infinity)continue; // skip entries with NaN (zero views or likes)
     sumY += y[i];
     sumX += x[i];
     sumXY += y[i] * x[i];
